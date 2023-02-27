@@ -376,9 +376,9 @@ if __name__ == "__main__":
                 print("\tKeeping  : %r" % media_id)
             else:
                 print("\tRemoving : %r" % media_id)
-                if part_info['file'][0].find("'") > -1:
-                    print('Be careful with', part_info['file'][0], 'as there is a trailing quote in the file path')
-                fn = part_info["file"][0].replace("'", "\\'")
-                fp.write(f'rm -v \'{fn}\'\n')
+                if part_info['file'][0].find('"') > -1:
+                    print('Be careful with', part_info['file'][0], 'as there is a quote in the file path')
+                fn = part_info["file"][0].replace('"', '"\\""')
+                fp.write(f'rm -v \"{fn}\"\n')
     print('- All done!')
     fp.close()
