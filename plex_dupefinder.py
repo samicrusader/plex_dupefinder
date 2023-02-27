@@ -196,34 +196,11 @@ def get_media_info(item):
     return info
 
 
-def delete_item(show_key, media_id):
-    delete_url = urljoin(cfg['PLEX_SERVER'], '%s/media/%d' % (show_key, media_id))
-    log.debug("Sending DELETE request to %r" % delete_url)
-    if requests.delete(delete_url, headers={'X-Plex-Token': cfg['PLEX_TOKEN']}).status_code == 200:
-        print("\t\tDeleted media item: %r" % media_id)
-    else:
-        print("\t\tError deleting media item: %r" % media_id)
-
-
 ############################################################
 # MISC METHODS
 ############################################################
 
 decision_filename = os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), 'decisions.log')
-
-
-def write_decision(title=None, keeping=None, removed=None):
-    lines = []
-    if title:
-        lines.append('\nTitle    : %s\n' % title)
-    if keeping:
-        lines.append('\tKeeping  : %r\n' % keeping)
-    if removed:
-        lines.append('\tRemoving : %r\n' % removed)
-
-    with open(decision_filename, 'a') as fp:
-        fp.writelines(lines)
-    return
 
 
 def should_skip(files):
@@ -338,6 +315,7 @@ if __name__ == "__main__":
 #                   GNU General Public License v3.0                     #
 #########################################################################
 """)
+    fp = open(decision_filename, 'a')
     print("Initialized")
     process_later = {}
     # process sections
@@ -371,88 +349,36 @@ if __name__ == "__main__":
     # process processed items
     time.sleep(5)
     for item, parts in process_later.items():
-        if not cfg['AUTO_DELETE']:
-            partz = {}
-            # manual delete
-            print("\nWhich media item do you wish to keep for %r ?\n" % item)
-
-            sort_key = None
-            sort_order = None
-
-            if cfg['FIND_DUPLICATE_FILEPATHS_ONLY']:
-                sort_key = "id"
-                sort_order_reverse = False
-            else:
-                sort_key = "score"
-                sort_order_reverse = True
-
-            media_items = {}
-            best_item = None
-            for pos, (media_id, part_info) in enumerate(collections.OrderedDict(
-                    sorted(parts.items(), key=lambda x: x[1][sort_key], reverse=sort_order_reverse)).items(), start=1):
-                if pos == 1:
-                    best_item = part_info
-                media_items[pos] = media_id
-                partz[media_id] = part_info
-
-            headers, data = build_tabulated(partz, media_items)
-            print(tabulate(data, headers=headers))
-
-            keep_item = input("\nChoose item to keep (0 or s = skip | 1 or b = best): ")
-            if (keep_item.lower() != 's') and (keep_item.lower() == 'b' or 0 < int(keep_item) <= len(media_items)):
-                write_decision(title=item)
-                for media_id, part_info in parts.items():
-                    if keep_item.lower() == 'b' and best_item is not None and best_item == part_info:
-                        print("\tKeeping  : %r" % media_id)
-                        write_decision(keeping=part_info)
-                    elif keep_item.lower() != 'b' and len(media_items) and media_id == media_items[int(keep_item)]:
-                        print("\tKeeping  : %r" % media_id)
-                        write_decision(keeping=part_info)
-                    else:
-                        print("\tRemoving : %r" % media_id)
-                        delete_item(part_info['show_key'], media_id)
-                        write_decision(removed=part_info)
-                        time.sleep(2)
-            elif keep_item.lower() == 's' or int(keep_item) == 0:
-                print("Skipping deletion(s) for %r" % item)
-            else:
-                print("Unexpected response, skipping deletion(s) for %r" % item)
+        partz = {}
+        print("\nWhich media item do you wish to keep for %r ?\n" % item)
+        sort_key = None
+        sort_order = None
+        if cfg['FIND_DUPLICATE_FILEPATHS_ONLY']:
+            sort_key = "id"
+            sort_order_reverse = False
         else:
-            # auto delete
-            print("\nDetermining best media item to keep for %r ..." % item)
-            keep_score = 0
-            keep_id = None
-
-            if cfg['FIND_DUPLICATE_FILEPATHS_ONLY']:
-                # select lowest id to keep
-                for media_id, part_info in parts.items():
-                    if keep_score == 0 and keep_id is None:
-                        keep_score = int(part_info['id'])
-                        keep_id = media_id
-                    elif int(part_info['id']) < keep_score:
-                        keep_score = part_info['id']
-                        keep_id = media_id
+            sort_key = "score"
+            sort_order_reverse = True
+        media_items = {}
+        best_item = None
+        for pos, (media_id, part_info) in enumerate(collections.OrderedDict(
+                sorted(parts.items(), key=lambda x: x[1][sort_key], reverse=sort_order_reverse)).items(), start=1):
+            if pos == 1:
+                best_item = part_info
+            media_items[pos] = media_id
+            partz[media_id] = part_info
+        headers, data = build_tabulated(partz, media_items)
+        print(tabulate(data, headers=headers))
+        keep_item = input("\nChoose item to keep: ")
+        for media_id, part_info in parts.items():
+            print(media_items.keys())
+            if len(media_items) and media_id == media_items[int(keep_item)]:
+                print("\tKeeping  : %r" % media_id)
             else:
-                # select highest score to keep
-                for media_id, part_info in parts.items():
-                    if int(part_info['score']) > keep_score:
-                        keep_score = part_info['score']
-                        keep_id = media_id
-
-            if keep_id:
-                # delete other items
-                write_decision(title=item)
-                for media_id, part_info in parts.items():
-                    if media_id == keep_id:
-                        print("\tKeeping  : %r - %r" % (media_id, part_info['file']))
-                        write_decision(keeping=part_info)
-                    else:
-                        print("\tRemoving : %r - %r" % (media_id, part_info['file']))
-                        if should_skip(part_info['file']):
-                            print("\tSkipping removal of this item as there is a match in SKIP_LIST")
-                            continue
-                        delete_item(part_info['show_key'], media_id)
-                        write_decision(removed=part_info)
-                        time.sleep(2)
-            else:
-                print("Unable to determine best media item to keep for %r", item)
+                print("\tRemoving : %r" % media_id)
+                if part_info['file'][0].find("'") > -1:
+                    print('Be careful with', part_info['file'][0], 'as there is a trailing quote in the file path')
+                fn = part_info["file"][0].replace("'", "\\'")
+                fp.write(f'rm -v \'{fn}\'\n')
+    print('- All done!')
+    fp.close()
