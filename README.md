@@ -1,3 +1,7 @@
+This fork doesnt delete anything, just dumps rm -rf to the log file so I can just C&P to the actual machine that handles files.
+
+--
+
 <img src="assets/logo.svg" width="600" alt="Plex DupeFinder">
 
 [![made-with-python](https://img.shields.io/badge/Made%20with-Python-blue.svg?style=flat-square)](https://www.python.org/)
